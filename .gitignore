@@ -1,0 +1,11 @@
+*.swp
+/tex/proof.sty.1
+/tex/report.aux
+/tex/report.bbl
+/tex/report.blg
+/tex/report.log
+/tex/report.out
+/tex/report.pdf
+/tex/report.synctex.gz
+/tex/report.toc
+/tex/texput.log

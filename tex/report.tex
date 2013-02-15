@@ -1,0 +1,872 @@
+\documentclass[a4paper]{jfp}
+\usepackage[margin=2cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{url}
+\usepackage{array}
+\usepackage{mathpartir}
+\usepackage{amsmath}
+\usepackage{stmaryrd}
+\usepackage{amssymb}
+\usepackage{comment}
+\usepackage[svgnames]{xcolor}
+\ifpdf
+  \usepackage{pdfcolmk}
+\fi
+\usepackage{graphicx}
+\usepackage{proof}
+\usepackage{hyperref}
+%\usepackage[outline]{contour}
+\usepackage{tikz}
+\usepackage{pifont}
+\usepackage{mathabx}
+\usepackage{color}
+\definecolor{superlightgray}{rgb}{0.95,0.95,0.95}
+\newcommand{\hilight}[1]{\colorbox{superlightgray}{#1}}
+\usepackage{float}
+\floatstyle{boxed}
+\restylefloat{figure}
+%\usepackage[square,super, comma]{natbib}
+\newlength{\tpheight}\setlength{\tpheight}{0.9\textheight}
+\newlength{\txtheight}\setlength{\txtheight}{0.9\tpheight}
+\newlength{\tpwidth}\setlength{\tpwidth}{0.9\textwidth}
+\newlength{\txtwidth}\setlength{\txtwidth}{0.9\tpwidth}
+\newlength{\drop}
+\synctex=1
+\newcommand{\outsidein}{\textsc{OutsideIn}(X)}
+\setlength{\parindent}{0cm}
+
+\newcommand*{\titleGP}{\begingroup% Geometric Modeling
+
+\drop=0.1\txtheight
+\centering
+\vspace*{\baselineskip}
+\rule{\txtwidth}{1.6pt}\vspace*{-\baselineskip}\vspace*{2pt}
+\rule{\txtwidth}{0.4pt}\\[\baselineskip]
+{\LARGE GENTZEN}\\[0.2\baselineskip]
+\rule{\txtwidth}{0.4pt}\vspace*{-\baselineskip}\vspace{3.2pt}
+\rule{\txtwidth}{1.6pt}\\[\baselineskip]
+\scshape
+A beginner's proof assistant based on \\
+Higher Order Logic\\
+\par
+\vspace*{2\baselineskip}
+A Special Project \\[\baselineskip]
+{\Large LIAM O'CONNOR-DAVIS}
+ \\[\baselineskip]
+Supervised By \\[\baselineskip]
+{\Large MANUEL M. T. CHAKRAVARTY}
+ \\[\baselineskip]
+ submitted in fulfillment of \\ the requirements for the honours degree of \\
+ \textbf{Bachelor of Science (Computer Science)}
+ \\[\baselineskip]
+{\itshape School of Computer Science and Engineering \\ University of New South Wales \par}
+\vfill
+\includegraphics[width=4cm]{unswcrest.pdf} \\
+
+\medskip
+
+%\plogo\\
+{\scshape February 15th 2013} \\
+\par
+\endgroup}
+%\linespread{1.5}
+%\sectionstyle{dash}\renewcommand*{\chaptitlefont}{\normalfont\itshape\LARGE}
+%\setlength{\beforechapskip}{2\onelineskip}
+%\setsecheadstyle{\normalfont\Large\raggedright}
+
+
+
+\begin{document}
+\setlength{\parskip}{9pt plus 1pt minus 1pt}
+%	\begin{titlepage}
+%\frontmatter
+\pagestyle{empty}
+\titleGP
+\clearpage
+\pagestyle{plain}
+%\mainmatter
+\begin{abstract}
+
+        Existing proof assistants such as \textsc{Isabelle} \cite{Nipkow-Paulson-Wenzel:2002} or \textsc{Coq} \cite{Team:vw} are geared towards large-scale, complicated
+  verification projects, and are not ideal educational tools for topics of a fairly formal nature,
+  such as the theoretical foundations of programming languages. In particular, they opt for a proof
+  language that resembles a programming language, rather than the structure typically seen in
+  pen-and-paper proofs. \textsc{Gentzen} is a simple theorem prover we are developing in \textsc{Haskell} \cite{Anonymous:2010we}, which will be
+  tightly integrated with its user interface, using a structural editor for graphically presented
+  proofs. This allows proof scripts to resemble pen-and-paper proofs, and assists students to focus
+  on the proof, rather than the proof assistant. This report outlines the current state of \textsc{Gentzen} development, and gives a formal treatment of its proof checker semantics.
+\end{abstract}
+
+\tableofcontents
+%\end{titlepage}
+\newpage
+             \vspace*{\fill}
+\begin{quote}
+\large
+
+``I tried reading Hilbert. Only his papers published in mathematical
+periodicals were available at the time. Anybody who has tried those knows they
+are very hard reading. ''
+
+\begin{flushright}
+   --- Alonzo Church
+\end{flushright}
+\normalsize
+\end{quote}
+
+             \vspace*{\fill}
+\newpage
+
+\section{Motivation}
+
+Logic, proofs, and proof techniques form the foundation for a variety of topics in Computer Science.
+In particular, simple, inductively defined structures and proofs about them are pervasive in fields such as
+programming language theory and formal methods.
+
+From an instructor's perspective, the assumption that any given student has the necessary mathematical
+maturity to understand such material has proven to be highly tenuous. In particular, students often
+lack the ability to read and write proofs.
+
+This leads to three possible course curricula, all problematic:
+
+\begin{enumerate}
+        \item A curriculum that simply assumes the necessary mathematical maturity anyway,
+              and suffers from perpetually low enrollments as a result\footnote{I
+              refer to this as the Engelhart Method}.
+        \item A curriculum that attempts to ``hide'' the mathematical
+                underpinnings of the field, instead focusing on more
+                ``practical'' considerations; an approach which Edsger Dijkstra rightly
+                decried as ``[lacking] the courage
+                to teach hard science'' and ``misguiding students''. Moreover, his prediction
+                that ``each next stage of infantilization of the
+                curriculum will be hailed as educational progress'' was sadly correct \cite{Dijkstra:tg}.
+        \item A curriculum that is forced to reduce the amount of difficult content so that
+              preliminary mathematical skills can be taught first. Our focus is on this type of
+              course.
+\end{enumerate}
+
+When investigating this problem for his own Software
+Foundations course, Benjamin Pierce advocated the use of a proof assistant, to enable students to
+work with proofs and check them without requiring intensive training and a fast feedback loop with
+teachers \cite{Pierce:2009:LUT:1596550.1596552}. This approach yielded promising results, enabling his syllabus to be significantly
+expanded with no substantial effect on student exam scores.
+
+Pierce chose \textsc{Coq} \cite{Team:vw}, a
+dependently-typed theorem prover based on the calculus of constructions \cite{Coquand86ananalysis}, as the
+proof assistant for his course. He encountered a few difficulties with this choice:
+
+\begin{itemize}
+\item Being
+        based on a \emph{constructive} logic formed by an intensional type theory, via the Curry Howard
+        correspondence \cite{Howard:1980vs}, \textsc{Coq} quickly plunges students into deep theoretical waters if they try to encode
+a proof by contradiction or extensionality. Explaining the theoretical foundations of programs being
+proofs requires a background in type theory and logic, which leads to a difficult conundrum when the
+goal of the course is to provide said background in type theory and logic.
+
+\item The user interface of \textsc{Coq} is not well-suited to beginners: the overall proof obligation can
+        sometimes be lost in a sea of confusing variable names and seemingly unrelated subgoals.
+\end{itemize}
+
+Based on this information, we have begun implementation of \textsc{Gentzen}, a theorem prover designed
+\emph{specifically} for this educational use-case.
+
+The meta-logic is based on Natural Deduction \cite{citeulike:869771}, with a higher-order term
+language based on the simply typed lambda calculus \cite{citeulike:808758}. By avoiding Curry-Howard, we eliminate the circular pedagogy
+problem that exists with a choice like \textsc{Coq}.
+
+Unlike \textsc{Coq}, \textsc{Gentzen} will be tightly integrated with our own custom
+\emph{structural editor} that operates on syntax trees rather than raw text.
+This enables us to represent proofs \emph{graphically} in a way that
+\textsc{Coq} cannot. Rules are written in vertical form, proofs are written in
+the ``proof tree'' style of Gentzen \cite{citeulike:869771}, and propositions can be displayed
+with any desired notation without fear of ambiguity, as they are never parsed
+from that format. In this way, a proof in \textsc{Gentzen} would resemble a
+proof written by hand on a paper or blackboard, rather than a series of
+inscrutable tactics and rules. Thus, we hope to avoid distracting students with
+learning the operation of the proof assistant, and help them instead to focus
+on learning to prove and reason mathematically.
+
+One of the positive aspects Pierce mentions for choosing \textsc{Coq} is its
+powerful automation facilities. \textsc{Gentzen}, by contrast, has little
+automation --- indeed, it has no notion of a tactic script, so automated
+tactics are difficult to express. As an experiment, we encoded some of our
+basic course materials in \textsc{Agda} \cite{conf/afp/norell08}, a proof assistant which also
+lacks automation, and have found that the lack of automation is not a hindrance
+to encoding the simple definitions and proofs used commonly in our Computer
+Science courses.
+
+As \textsc{Gentzen} is designed to work on small, simple problems that would be
+commonly encountered in a tutorial or exam, there is no need for a highly
+efficient implementation.  This means that, unlike \textsc{Isabelle} or
+\text{Coq}, we can focus on making the implementation simple and easily
+understood, and exploit language features to guide us to a correct
+implementation more straightforwardly. In addition, as our prover is not
+designed to be trusted for safety-critical systems, we do not need to go to
+LCF-style pains to ensure soundness \cite{Milner:1972:LCF:891954}, unlike \textsc{Isabelle}.
+
+In the world of proof assistant implementation, there are very few tutorials or
+simple implementations to study. The core theorem prover components of
+\textsc{Gentzen} are designed  to be the \emph{simplest possible}
+implementation of a proof assistant. This motivates many design decisions, from
+our use of a simply typed (non-polymorphic) lambda calculus, to conventional
+higher order unification (see section 2). In this way, we hope to make the
+first version of \textsc{Gentzen} into a \emph{tutorial implementation} that
+smooths the road for others that wish to follow us into this sparsely charted
+territory.
+
+
+\section{Design and Semantics}
+
+There are two main languages at work in any HOL-style theorem prover. The language of \emph{terms},
+which are usually expressions in some (normalising) lambda calculus, and the language of \emph{proof},
+also known as the \emph{meta-logic}, which in our case is based on the style of natural deduction.
+
+\begin{figure}
+	\caption{Syntax of Term Language}
+   	\begin{displaymath}
+	\begin{array}{llcl}
+		\text{Term variables} & & \in & x, y, z, f, g, h, \cdots \\
+           \text{Base Types} & & \in & {\tt T}, {\tt U}, \cdots \\
+		\text{Types} & \tau & ::= & \mathtt{T}\ |\ \tau_1 \rightarrow \tau_2\ \\
+      \text{Free (schematic) variables} & & \in & A_\tau, B_\tau, C_\tau \\
+      \text{Expression heads} & h & ::= & x\ |\ A_\tau \\
+           \text{$\beta$-normal expressions} & e & ::= & \lambda(\overline{ x : \tau }).\ h\ \overline{e} \\
+      \text{Type environments} & \Gamma & ::= & \overline{x : \tau}
+	\end{array}
+	\end{displaymath}
+   \label{fig:terms}
+\end{figure}
+
+\subsection{Term Language}
+
+The language of terms is defined in Figure~\ref{fig:terms}. For our modest goals, we have chosen to use
+Church's $\lambda_\rightarrow$, the simply typed lambda calculus, equipped with atomic base types.
+
+For our term representation, we want structural equality between terms to equate: terms with cosmetic differences in names ($\alpha$-equivalence), terms in different forms but which normalise
+to the same result ($\beta$-equivalence), and terms with expanded $\lambda$-abstractions around variables
+of function types ($\eta$-equivalence). By making this $\alpha\beta\eta$-equivalence into a structural equality
+we simplify a number of problems when proof-checking, chief among them being the unification of higher-order terms.
+
+Making $\alpha$-equivalence into structural equality can be solved trivially by
+using a nameless representation such as de Bruijn indices
+\cite{deBruijn:1972tm}. We present our rules here, however, using a named
+representation, as de Bruijn terms can be difficult to read. Our choice of name representation is
+essentially based on de Bruijn indices, however we parameterise the type of terms by the type used
+for indices, which turns terms into a monad, with substitution as the monadic ``bind'' function \cite{Bird:1999:DBN:968699.968702}.
+
+\begin{figure}[H]
+   \caption{Recovering traditional Application, Abstraction, and Substitution}
+   \begin{tabular}{p{0.5\textwidth}p{0.5\textwidth}}
+   	\begin{displaymath}
+              \text{\framebox{$ e_1 \cdot e_2 = e_r $}}
+	\end{displaymath}
+   \begin{center}
+           (Application)
+   \end{center}
+     \begin{displaymath}
+     \begin{array}{r@{\hspace{0.5em}}c@{\hspace{0.5em}}l@{\hspace{0.5em}}c@{\hspace{0.5em}}l@{\hspace{1pt}}r}
+     h\ \overline{e_a} & \cdot & e & = & h\ \overline{e_a}\ e &\\
+     \lambda(x_0 : \tau_0,\ \overline {x_n : \tau_n}).\ h\ \overline{e_a} & \cdot & e & = & [x_0 := e ](\lambda(\overline{x_n : \tau_n}).\ h\ \overline{e_a}) & \\
+     \end{array}
+     \end{displaymath} &
+   	\begin{displaymath}
+              \text{\framebox{$ \dot{\lambda}(x : \tau).\ e = e_r $}}
+	\end{displaymath}
+   \begin{center}
+           (Abstraction)
+   \end{center}
+   \begin{displaymath}
+           \begin{array}{r@{\hspace{0.5em}}r@{\hspace{0.5em}}c@{\hspace{0.5em}}l}
+                   \dot{\lambda}(x : \tau). & \lambda(\overline{x_i : \tau_i}).\ h\ \overline{e_a} & = & \lambda(x : \tau, \overline{x_i : \tau_i}).\ h\ \overline{e_a}
+           \end{array}
+   \end{displaymath}   \\
+   	\begin{displaymath}
+              \text{\framebox{$ e_1\ \hat{\cdot}\ \overline{e_2} = e_r $}}
+	\end{displaymath}
+   \begin{center}
+           Left fold of application.
+   \end{center}         &
+
+   	\begin{displaymath}
+              \text{\framebox{$ \hat{\lambda}(\overline{x_i : \tau_i}).\ e = e_r $}}
+	\end{displaymath}
+   \begin{center}
+           Right fold of abstraction.
+   \end{center}
+   \end{tabular}
+   \begin{displaymath}
+           \text{\framebox{$ [h := e_s] e = e_r $}}
+   \end{displaymath}
+   \begin{center}
+           (Substitution)
+   \end{center}
+     \begin{displaymath}
+     \begin{array}{rlclr}
+             [ h := e_s ] & \lambda(\overline{x_i : \tau_i}).\ h'\ \overline{e_a} & = &
+                 \begin{cases}
+                         \hat{\lambda}(\overline{x_i : \tau_i}).\ e_s\ \hat{\cdot}\ \overline{[ h := e_s ]e_a} & \text{if $h = h'$}
+                         \\  \lambda(\overline{x_i : \tau_i }).\ h'\ \overline{[h := e_s]e_a} & \text{if $h \neq h'$}
+                 \end{cases} & \text{(assuming $\bigwedge_i x_i \neq h$)}  \\
+     \end{array}
+     \end{displaymath}
+
+   \label{fig:appsubst}
+   \end{figure}
+
+To make $\beta$-equivalent terms structurally equal, we remove expressions of the form
+$(\lambda(x : \tau).\ e_r)\ e_a$ from our language.
+All terms consist of some number of lambda abstractions, a \emph{head} term
+(which is essentially a variable), and some number of argument terms. Thus, all
+our terms are automatically in $\beta$-normal form.  We recover the
+expressivity of the more traditional, non-normalised representation by encoding
+it as explicit combinators that result in $\beta$-normal terms.
+Figure~\ref{fig:appsubst} defines application, abstraction and substitution
+this way.
+
+Note that these functions normalise as per the \emph{untyped} lambda calculus --- they completely
+ignore types when normalising. This means that an attempt to construct a non-normalising term will cause
+these functions to diverge. As our \emph{typed} lambda calculus is strongly normalising, we can
+guarantee that these combinators will converge when used with well-typed terms. In
+practice, these combinators are only used in two situations: performing substitutions, and expansion to $\eta$-long normal form. In both of these situations, it is easy to show that terms have the correct types\footnote{Assuming substitution is sound.}.
+
+It is not possible, however, to make any two $\eta$-equivalent terms structurally equal, as
+any sound $\eta$-normalisation is dependent on type-checking information. This necessitates some
+initial term representation, which is not necessarily $\eta$-normal, on which the type checker
+operates. The typing rules of our lambda calculus are shown in Figure~\ref{fig:types}, along
+with the expansion rules to \emph{$\eta$-long normal form}, where all function-typed
+variables are fully saturated with applications. While our typing rules and $\eta$-long normalisation
+steps are shown here as separate phases, our implementation interleaves type checking and 
+$\eta$-long normalisation. In addition to some minor performance benefits, this also guarantees that,
+for \emph{type checked terms} at least, $\eta$-equivalent terms are structurally equal.
+
+In addition to bound variables, a \emph{head} term can also be a \emph{schematic} or unification
+variable. A schematic variable $A_\tau$ can be freely substituted for any term of type $\tau$, and
+the user or the unification algorithm is free to do so at any time. These variables are effectively
+global in
+scope, and therefore no $\alpha$-equivalence 
+problems arise from using names to represent these variables.
+
+
+\begin{figure}
+        \small
+	\caption{Typing and $\eta$-long normalisation rules}
+   \begin{tabular}{p{0.5\textwidth}p{0.5\textwidth}}
+   	\begin{displaymath}
+		\text{\framebox{$ \Gamma \vdash h : \tau $}}
+	\end{displaymath}
+   \begin{center}
+           (Head typing rules)
+   \end{center}
+   	\begin{displaymath}
+              \inferrule{\quad}{\Gamma \vdash A_\tau : \tau}{\textsc{Schematic}}\quad
+              \inferrule{(x : \tau) \in \Gamma }{\Gamma \vdash x : \tau}{\textsc{Bound}}
+	\end{displaymath}
+   &
+   	\begin{displaymath}
+		\text{\framebox{$ \Gamma \vdash e : \tau $}}
+	\end{displaymath}
+   \begin{center}
+           (Expression typing rules)
+   \end{center}
+   	\begin{displaymath}
+              \inferrule{\overline{x_i} \cap \mathit{dom}(\Gamma) = \emptyset \\  \overline{(x_i : \tau_i)},\Gamma \vdash h : \overline{\alpha_j} \rightarrow \tau_r
+              \\ \text{for each $e_j$:}\ \overline{(x_i : \tau_i)}, \Gamma \vdash e_j : \alpha_j}
+              {\Gamma \vdash \lambda(\overline{x_i : \tau_i}).\ h\ \overline{e_j} : \overline{\tau_i} \rightarrow \tau_r}
+                        {\textsc{Term}}\quad
+	\end{displaymath}
+   \end{tabular}
+   \newcommand{\etalong}{\stackrel{\eta \mathit{lnf}}{\longrightarrow}}
+   \newcommand{\etaexp}{\stackrel{\eta}{\longrightarrow}}
+   \begin{tabular}{p{0.5\textwidth}p{0.5\textwidth}}
+   	\begin{displaymath}
+              \text{\framebox{$ \Gamma \vdash h \etaexp e_\eta $}}
+	\end{displaymath}
+   \begin{center}
+           (head $\eta$-expansion)
+   \end{center}
+   \begin{displaymath}
+           \inferrule{\Gamma \vdash h : \overline{\tau_i} \rightarrow \tau \\ \overline{x_i} \cap \mathit{dom}(\Gamma) = \emptyset}{\Gamma \vdash h \etaexp \lambda(\overline{x_i : \tau_i}).\ h\ \overline{x_i}}{\textsc{Expand}}
+   \end{displaymath}
+   &
+   \begin{displaymath}
+              \text{\framebox{$ \Gamma \vdash e \etalong e_\eta $}}
+	\end{displaymath}
+   \begin{center}
+           ($\eta$-long normalisation)
+   \end{center}
+   	\begin{displaymath}
+              \inferrule{(\overline{x_i : \tau_i}),\Gamma \vdash h \etaexp e}
+              {\Gamma \vdash \lambda(\overline{x_i : \tau_i}).\ h\ \overline{e_a} \etalong \hat{\lambda}(\overline{x_i : \tau_i}).\ e\ \hat{\cdot}\ \overline{e_a}}{\textsc{Norm}}
+	\end{displaymath}
+   \\
+   \end{tabular}
+   \label{fig:types}
+\end{figure}
+
+\subsection{Proof Language}
+
+Our meta-logic must provide for a means of expressing \emph{statements} in our logic, such as 
+assumptions or proof obligations, which we refer to collectively as \emph{rules}, as well as some
+language for expressing the proofs themselves, which we call \emph{statements}.
+
+\subsubsection{Rules}
+
+Our notion of a rule is derived from the \emph{Natural Deduction} of Gentzen \cite{citeulike:869771}, where rules are expressed as rules of inference of the following form:
+\def\imagetop#1{\vtop{\null\hbox{#1}}}
+\begin{displaymath}
+        \begin{array}{l}
+                a b c.\imagetop{ \inferrule{\rho_1 \\ \rho_2 \\ \cdots \\ \rho_n}
+                {e}{\textsc{Name}}}
+\end{array}
+\end{displaymath}
+
+This rule says that, for all values of the metavariables $a$, $b$ and $c$, the conclusion (which is some concrete proposition $e$, an expression of type $\mathtt{Prop}$) can be derived if all of the premises $\rho_1$, $\rho_2$, $\cdots$, $\rho_n$ can be derived. Note that these premises can themselves be rules. For example, here is an induction principle for Peano style natural numbers, where $ 0 : \mathbb{N}$ and $ \textbf{succ} : \mathbb{N} \rightarrow \mathbb{N}$:
+
+\begin{displaymath}
+        \mkern-18mu   \mkern-18mu P\ n.\imagetop{\infer{P(n)}{\raisebox{-35pt}{$P(0)$} & x.\imagetop{\infer*{P(\textbf{succ}\ x)}{P(x)}}}\raisebox{8pt}{$\;$\textsc{Induct}}}
+\end{displaymath}
+
+This rule says that for any $P$, presumably of type $\mathbb{N} \rightarrow \mathtt{Prop}$, and any $n : \mathbb{N}$, if $P(0)$ is derivable and, for any $x$, we can derive $P(\textbf{succ}\ x)$ from $P(x)$, then $P(n)$ is derivable.
+
+Note that the vertical dots ($\vdots$) are used for the subrule rather than the horizontal vinculum
+--- this notational difference distinguishes hypothetical derivations like those used above from the 
+stacked rule applications used in the ``proof tree'' notation of natural deduction proofs, which will be discussed in Section~\ref{subsec:proofs}.
+
+\begin{figure}
+        \small
+        \caption{Syntax for Rules and Statements}
+   	\begin{displaymath}
+	\begin{array}{llcl}
+           \text{Rule names} & & \in & \dot{q}\ |\ \dot{r}\ |\ \dot{s}\ |\ \cdots \\
+           \text{Rules} & \rho & ::= & \Lambda(\overline{x : \tau}).\ \llbracket \overline{\rho_p} \rrbracket \Rightarrow e \\
+           \text{Statements} & \pi & ::= & \mathtt{for\ all}\ x : \tau.\ \pi\ \\
+                             &     &  |  & \mathtt{assuming}\ \dot{r} = \rho,\ \pi \\
+                             &     &  |  & \mathtt{lemma}\ \dot{r} = \pi_1,\ \pi_2 \\
+                             &     &  |  & \psi\ \\
+           \text{Proof Trees} & \psi & ::= & \mathtt{sorry}\ \rho \\
+                              &   & | & \mathtt{show}\ \rho\ \mathtt{by}\ \dot{r}\ \mathtt{with}\ \sigma \\
+                              &   & | & \mathtt{step}\ e\ \mathtt{by}\ \dot{r}\ \mathtt{with}\ \sigma\ \mathtt{giving}\ \overline{\psi} \\
+           \text{Substitutions} & \sigma, \theta & ::= & [\overline{h := e}] \\
+           \text{Rule environments} & \Delta & ::= & \overline{\dot{r} = \rho} \\
+           \text{Context stack} & \Phi & ::= & \Phi \blacktriangleleft \phi\ |\ \epsilon \\
+           \text{Context frame} & \phi & ::= & \mathtt{for\ all}\ x : \tau.\ \Box \\
+                                &      &  |  & \mathtt{assuming}\ \dot{r} = \rho,\ \Box \\
+                                &      &  |  & \mathtt{lemma}\ \dot{r} = \Box,\ \pi \\
+                                &      &  |  & \mathtt{lemma}\ \dot{r} = \pi,\ \Box\ (\rho) \\
+                                &      &  |  & \mathtt{step}\ e\ \mathtt{by}\ \dot{r}\ \mathtt{with}\ 
+           \sigma\ \mathtt{giving}\ \overline{\psi}\ \Box\ \overline{\psi} \\
+           \text{Equations}     & \xi  & ::=  & \overline{e_1 \sim e_2} \\
+           \text{Proof states} & Q & ::= & \Gamma ;\ \Delta ;\ \xi ;\ \Phi \triangleright \pi \\
+                               &   &  |  & \Gamma ;\ \Delta ;\ \xi ;\ \Phi \triangleleft \pi ; \rho \\ 
+	\end{array}
+	\end{displaymath}
+
+   $$
+   \text{Substitution Image:}\ \sigma '' \overline{h} = \{ x := e\ |\ x \in \overline{h},\ (x := e) \in \sigma \}
+   $$
+
+        \label{fig:rules}
+\end{figure}
+While the graphical interface of \textsc{Gentzen} would display this rule much like it is presented here,
+we will use the more compact syntax described in Figure~\ref{fig:rules} to simplify presentation. In
+this syntax, the above rule would be represented by:
+
+$$ \Lambda(P : \mathbb{N} \rightarrow \mathtt{Prop}, n : \mathbb{N}).\ \llbracket P(0);\ \Lambda(x : \mathbb{N}).\ \llbracket P(x) \rrbracket \Rightarrow P(\mathbf{succ}\ x) \rrbracket \Rightarrow P(n) $$
+
+
+Figure~\ref{fig:wellformed} describes a well-formedness relation on rules, which simply ensures that
+all terms inside the rule are of the correct type --- the special propositional type $\mathtt{Prop}$. It also defines substitution on rules, and instantiation of rules with some metavariable assignment.
+
+\subsubsection{Statements}
+\label{subsec:proofs}
+
+Suppose we encode in natural deduction rules for implication and conjunction:
+
+\begin{center}
+\begin{tabular}{m{0.2\textwidth}m{0.2\textwidth}}
+\begin{displaymath}
+A\ B.\ \imagetop{\infer[\supset_I^u]{A \supset B}{\infer*{B}{\infer[u]{A}{}}}} 
+\end{displaymath}        
+& $$ A\ B.\ \imagetop{\infer[\land_I]{A \land B}{A & B}} $$
+\end{tabular}
+\end{center}
+
+In natural deduction, a proof of a statement is given by a tree-like
+application of rules, where each sub-goal is produced by an application of some instantiation of
+a rule to the desired conclusion. Here is a proof that, assuming $P\; (A_1)$, $Q\; (A_2)$, and $R\; (A_3)$, then
+$P \land (Q \land R)$\footnote{Typically instantiating assignments are not given in these proofs, but we
+include them for clarity}:
+
+$$
+\inferrule*[Right=\begin{math}\land_I\;\llbracket {A := P,\ B := Q \land R} \rrbracket\end{math}]
+{\inferrule*[Right=\begin{math}A_1\end{math}]{\quad}{P} \\ \inferrule*[Right=\begin{math}\land_I\;\llbracket {A := Q,\ B := R} \rrbracket\end{math}]{\inferrule*[Right=\begin{math}A_2\end{math}]{\quad}{Q} \\ \inferrule*[Right={$A_3$}]{\quad}{R}}{Q \land R}}
+           {P \land (Q \land R)}
+$$
+
+\begin{figure}
+        \caption{Rule Well-formedness relation and utility functions}
+        $$\text{\framebox{$ \Gamma \vdash \rho\ \textbf{wellformed} $}}$$
+
+        $$
+        \inferrule{(\overline{x_i : \tau_i}), \Gamma \vdash e : \mathtt{Prop} \\ \text{for each $\rho_p$:}\ (\overline{x_i : \tau_i}), \Gamma \vdash \rho_p\ \textbf{wellformed} \\ \overline{x_i} \cap \mathit{dom}(\Gamma) = \emptyset}
+                  { \Gamma \vdash \Lambda(\overline{x_i : \tau_i}).\ \llbracket{\overline{\rho_p} }\rrbracket \Rightarrow e\ \textbf{wellformed}} 
+                  {\textsc{Well-formed}} 
+        $$
+                $$\text{\framebox{$ [ x := e_s ] \rho = \rho_r $}}$$
+\begin{center}(Rule Substitution)\end{center}
+        $$ \begin{array}{rlclr}
+        [ x := e_s ] & \Lambda(\overline{x_i : \tau_i}).\ \llbracket \overline{\rho_r} \rrbracket \Rightarrow e & = & \Lambda(\overline{x_i : \tau_i}).\ \llbracket \overline{[x := e_s]\rho_r} \rrbracket \Rightarrow [x := e_s]e & \text{(Assuming $x \notin \overline{x_i}$)}\end{array}$$
+
+                $$\text{\framebox{$ \textbf{instantiate}(\rho, \sigma) = \rho_r $}}$$
+\begin{center}(Rule instantiation)\end{center}
+        $$ \begin{array}{lclr}
+        \textbf{instantiate}(\Lambda(\overline{x_i : \tau_i}).\ \llbracket \overline{\rho_r} \rrbracket \Rightarrow e, \sigma) & = & \Lambda(\overline{x_i : \tau_i}).\ \llbracket \overline{\sigma\rho_r} \rrbracket \Rightarrow \sigma e & \text{where $\mathit{dom}(\sigma) = \overline{x_i}$}\end{array}$$
+
+\label{fig:wellformed}
+\end{figure}
+
+This proof can be read either in a \emph{forward} direction, establishing the truth of the overall
+statement from the assumptions of $P$, $Q$ and $R$, or a \emph{backward} direction, decomposing
+each proof obligation into smaller obligations via rule application.
+
+Our proof language, fully outlined in Figure~\ref{fig:rules}, mirrors the structure of this proof quite closely\footnote{Assuming $\supset_I$ and $\land_I$ are already in scope}:
+$$ \begin{array}{l} \mathtt{for\ all}\ P : \mathtt{Prop}. \quad \mathtt{for\ all}\ Q : \mathtt{Prop}.\quad \mathtt{for\ all}\ R : \mathtt{Prop}.  \\
+\quad \mathtt{assuming}\ A_1 = P, \quad \mathtt{assuming}\ A_2 = Q, \quad \mathtt{assuming}\ A_3 = R, \\
+\quad \quad \mathtt{step}\ (P \land (Q \land R))\ \mathtt{by}\ \land_I\ \mathtt{with}\ [A := P, B = Q \land R]\\
+\quad \quad \quad \mathtt{giving}\ \mathtt{show}\ P\ \mathtt{by}\ A_1\ \mathtt{with}\ \epsilon; \\
+\quad \quad \ \ \! \qquad \qquad \mathtt{step}\ (Q \land R)\ \mathtt{by}\ \land_I\ \mathtt{with}\ [A := Q, B := R]\ \\ 
+\quad \quad \ \ \! \qquad \qquad \quad \mathtt{giving}\ (\mathtt{show}\ Q\ \mathtt{by}\ A_2\ \mathtt{with}\ \epsilon, \mathtt{show}\ R\ \mathtt{by}\ A_3\ \mathtt{with}\ \epsilon)
+\end{array} $$ 
+
+Here is a proof of $P \supset (Q \supset P \land Q)$, for all
+$P$ and $Q$:
+$$
+\inferrule*[Right=\begin{math}\supset_I^u\;\llbracket {A := P,\ B := Q \supset P \land Q} \rrbracket\end{math}]{\inferrule*[Right=\begin{math}\supset_I^v\;\llbracket {A := Q,\ B := P \land Q}\rrbracket\end{math}]
+{\inferrule*[Right=\begin{math}\land_I\;\llbracket {A := P,\ B := Q} \rrbracket\end{math}]{\inferrule*[Right=\textit{u}]{\quad}{P} \\ \inferrule*[Right=\textit{v}]{\quad}{Q}}{P \land Q}}{Q \supset P \land Q}}
+{P \supset (Q \supset P \land Q)}
+$$
+
+
+This proof demonstrates a number of characteristics of natural deduction proofs. Most notably, rules
+with \emph{hypothetical derivations} in their premises (like $\supset_I$) produce 
+\emph{local assumptions} in the proof tree, which are only available to the subgoals produced by
+that rule application.
+
+These local assumptions prove to be a considerable complication when implementing proof checking,
+and they can be quite confusing to struggling students. We solve this problem by restricting proof
+trees to include \emph{no} hypothetical assumptions. Instead, goals which include hypothetical
+derivations must be solved by directly instantiating a separate lemma. The above proof would therefore be written in our
+proof language as:
+$$
+\begin{array}{l}
+\mathtt{for\ all}\ P : \mathtt{Prop}.\quad \mathtt{for\ all}\ Q : \mathtt{Prop}.\\
+\quad \mathtt{lemma}\ \ell = \mathtt{assuming}\ \alpha_1 = P, \\
+\quad \qquad \qquad \qquad \mathtt{lemma}\ \ell_1 = \mathtt{assuming}\ \alpha_2 = Q, \\
+\quad \qquad \qquad \qquad \qquad \qquad \qquad \quad \mathtt{step}\ (P \land Q)\ \mathtt{by}\ \land_I\ \mathtt{with}\ [A := P, B := Q ]\ \\ 
+\quad \qquad \qquad \qquad \qquad \qquad \qquad \quad \qquad \mathtt{giving}\ (\mathtt{shows}\ P\ \mathtt{by}\ \alpha_1\ \mathtt{with}\ \epsilon, \mathtt{shows}\ Q\ \mathtt{by}\ \alpha_2\ \mathtt{with}\ \epsilon), \\
+\quad \qquad \qquad \qquad  \mathtt{step}\ (Q \supset P \land Q)\ \mathtt{by}\ \supset_I\ \mathtt{with}\ [ A := Q, B := P \land Q ]                 \\
+\qquad \qquad \qquad \qquad \quad \mathtt{giving}\ (\mathtt{shows}\ \llbracket Q \rrbracket \Rightarrow P \land Q\ \mathtt{by}\ \ell_1\ \mathtt{with}\ \epsilon), \\
+\quad  \mathtt{step}\ (P \supset (Q \supset P \land Q))\ \mathtt{by}\ \supset_I\ \mathtt{with}\ [A := P, B := Q \supset P \land Q]\ \\
+\quad \qquad \mathtt{giving}\ (\mathtt{shows}\ (\llbracket P \rrbracket \Rightarrow (Q \supset P \land Q))\ \mathtt{by}\ \ell\ \mathtt{with}\ \epsilon)
+\end{array}
+$$
+
+\emph{Note}: The graphical editor for \textsc{Gentzen} will display these proof objects in a much more
+visually appealing way, using vertical rules of inference and proof trees where possible.
+
+
+\subsection{Proof Checking}
+
+Most interactive proof assistants, such as \textsc{Isabelle} or \textsc{Coq}, structure proofs as a linear series of tactic applications to an invisible, temporal \emph{proof state}. The ``proof'' that is written is not actually a 
+proof \emph{object}, but a rough series of instructions for \emph{creating} one. Many finer details,
+such as what instantiating assignments to use when applying rules, are inferred automatically by
+the prover as it processes the proof script, usually using unification or similar techniques.
+
+This design decision makes sense, considering the use cases for which \textsc{Isabelle} and \textsc{Coq} are designed:
+In many large-scale verification efforts, the proof objects themselves become intractably large. For
+our use-cases though, the added clarity of an explicit proof object is of great benefit, and scalability
+is not quite so important.
+
+Manually writing out a proof of this nature, including all variable assignments, is an incredibly laborious task. To ease this burden, we add a unification engine to infer assignments, but expose it to the user
+as an editor feature, rather than as a proof tactic.
+
+\subsubsection{Unification}
+
+Unification is the problem of taking a set of equality constraints of the form $e_1 \sim e_2$, and 
+devising a substitution $\sigma$, which replaces only free schematic unification variables, such that 
+$\sigma e_1 = \sigma e_2$ for each of the constraints in the set.
+
+Now, because our term language is a lambda calculus, the simple, decidable first-order unification
+algorithm of Robinson \cite{Robinson:1965:MLB:321250.321253} is not sufficient. Instead, we use
+the semi-decidable, \emph{pre-unification} algorithm of G\'erard Huet \cite{DBLP:journals/tcs/Huet75}.
+
+For a full introduction to higher order unification, de Moura et al.\ relate Huet's method to a
+method based on explicit substitutions, and provide an approachable introduction to the topic \cite{deMoura200872}.
+
+As our terms are automatically in $\beta\eta$ normal form, we can syntactically group equations into three 
+broad categories:
+
+\begin{itemize}
+        \item \emph{Rigid-Rigid} - Where the head of both sides of the equation are a bound variable.
+        \item \emph{Flex-Rigid}  - Where the head of one side of the equation is a unification variable.
+        \item \emph{Flex-Flex}   - Where the heads of both sides of the equation are unification variables.
+\end{itemize}
+
+Huet's algorithm is based on the interleaving of two procedures:
+
+\begin{enumerate}
+   \item \textbf{simpl}, which breaks down \emph{rigid-rigid} equations into \emph{flex-rigid} or
+                         \emph{flex-flex} equations.
+   \item \textbf{match}, which produces a number of possible substitutions for \emph{flex-rigid}
+           equations, based on two rules: \emph{imitate}, which attempts to substitute the unification
+           variable for a term involving the head of the rigid term, and \emph{project}, which
+           attempts to reorder the parameters passed into the head to make the flexible term more
+           closely resemble the rigid term.
+\end{enumerate}
+
+Imagine a nondeterministic computation tree which starts with the original constraint set,
+runs \textbf{simpl}, and then nondeterministically branches on each substitution returned from 
+\textbf{match}, applying the substitution and repeating the process, failing if an unsatisfiable
+constraint is produced, and succeeding if all equations are \emph{flex-flex}. This tree is known
+as a \emph{unification tree}. The desired substitution $\sigma$ is simply the composition of each
+substitution applied along a successful branch.
+
+As this unification is only semi-decidable, there will be at least one finite path to a
+\emph{success node} if the constraints are satisfiable, but the tree may have branches that are
+infinitely long, and never reach either success or failure. As we have implemented this algorithm in \textsc{Haskell}, a non-strict language, we can conveniently represent this unification tree simply as a tree, which we traverse in breadth-first order up to a depth limit, looking for success nodes. The depth limit can be customised by the user.
+
+Note that Huet's algorithm is merely an method for \emph{pre}-unification, and so \emph{flex-flex}
+equations are \emph{not} resolved by this algorithm. While any \emph{flex-flex} equation
+is always unifiable, searching for a
+solution to multiple simultaneous \emph{flex-flex} equations is difficult indeed. Therefore, 
+our approach, much like that of \textsc{Isabelle} and similar,
+is to simply \emph{delay} solving nontrivial \emph{flex-flex} constraints, and 
+leave them as unresolved in  the proof state. These constraints are then added in to later 
+unification problems, which may result in a substitution that changes the constraint into 
+\emph{flex-rigid} or \emph{rigid-rigid} form, and therefore makes it soluble by the \textbf{simpl} 
+and \textbf{match} procedures documented above.
+
+
+\subsubsection{Semantics}
+
+Figure~\ref{fig:semantics} outlines the proof checker in the style of an operational semantics,
+however each transition is a \emph{user action}, either to move forward, backward, or to apply
+a rule with unification. For this reason, this is an \emph{interactive} semantics that describes
+the changes to the proof state based on the user's behaviour.
+
+States are either of the form $\Gamma;\ \Delta;\ \xi;\ \Phi \triangleright \pi$ where
+$\Gamma$ is a type environment for all variable introductions in the context stack $\Phi$,
+$\Delta$ is a similar \emph{rule} environment for all known facts (assumptions or lemmas), $\xi$
+is a set of unresolved \emph{flex-flex} equations, and $\pi$ is some proof statement that is
+currently being written or edited; or of the form $\Gamma;\ \Delta;\ \xi;\ \Phi \triangleleft \pi, \rho$
+where the proof statement $\pi$ has been checked as a valid proof of the rule $\rho$, returning
+into the context waiting in $\Phi$.
+
+This style of presentation, based on Huet's Zipper \cite{citeulike:352553}, easily
+gives rise to a design for a \emph{structural editor}, which edits abstract syntax rather than text.
+In \textsc{Isabelle} or \textsc{Coq}, the user is equipped with a \emph{cursor} into the proof script, \emph{after}
+which the code is editable, but before which the code is read-only, as modifying this ``earlier'' 
+code without  re-checking could make the proof state incoherent with respect to the proof script. 
+Similarly, our proof editor can consider any statement syntax that is part of the 
+\emph{context stack} to be inviolate and read-only, and any proof statements to the right of the 
+$\triangleright$ to be freely editable.
+
+In this way, applying a rule to an unsolved goal becomes an \emph{editing} action. A known rule is
+selected by the user, which is unified with the current goal, and the instantiation assignment (a subset of the unifier) is saved into the proof code.  This means that, when undertaking normal proof checking, we merely need to check that the only constraints that remain after the instantiating assignment is applied are part of the unsolved constraint set $\xi$, which is achieved via \textbf{simpl}. Thus, unification is not part of the \emph{proof checking} process, merely part of the \emph{proof writing} process.
+
+\begin{figure}
+        \footnotesize
+        \caption{Interactive step semantics for proof checking}
+              $$\text{\framebox{$ Q \mapsto Q' $}}$$
+        \begin{center}
+                (User Action: Step Forward)
+        \end{center}
+        $$
+                \inferrule{x \notin \mathit{dom}(\Gamma)}{\Gamma ;\ \Delta ;\ \xi;\ \Phi \triangleright \mathtt{for\ all}\ x : \tau.\ \pi
+                \;\; \mapsto \;\; x : \tau, \Gamma ;\ \Delta ;\ \xi;\ \Phi \blacktriangleleft \mathtt{for\ all}\ x: \tau.\ \Box  \triangleright \pi}
+                {\textsc{ForAll}_\triangleright}
+$$
+
+        $$
+        \inferrule{\dot{r} \notin \mathit{dom}(\Delta) \\ \Gamma \vdash \rho\ \textbf{wellformed}}{\Gamma ;\ \Delta ;\ \xi;\ \Phi \triangleright \mathtt{assuming}\ \dot{r} = \rho,\ \pi
+        \;\; \mapsto \;\; \Gamma ;\ \dot{r} = \rho, \Delta ;\ \xi;\ \Phi \blacktriangleleft \mathtt{assuming}\ \dot{r} = \rho,\ \Box  \triangleright \pi}
+                {\textsc{Assuming}_\triangleright}
+$$
+
+        $$
+        \inferrule{ }{\Gamma ;\ \Delta ;\ \xi;\ \Phi \triangleright \mathtt{lemma}\ \dot{r} = \pi_1,\ \pi_2
+        \;\; \mapsto \;\; \Gamma ;\ \Delta ;\ \xi;\ \Phi \blacktriangleleft \mathtt{lemma}\ \dot{r} = \Box,\ \pi_2  \triangleright \pi_1}
+                {\;\textsc{Lemma}_\triangleright}
+$$
+
+        $$
+        \inferrule{ \overline{\psi_i} = \psi_0, \overline{\psi_j}\\ \Gamma \vdash e : \mathtt{Prop} \\ (\dot{r} = \rho) \in \Delta \\ \textbf{instantiate}(\rho,\sigma) = \rho' \\ \Gamma ; \xi \Vdash_\rho \rho' \sim \llbracket \overline{\textbf{rule}(\psi_i)} \rrbracket \Rightarrow e  }{\Gamma ;\ \Delta ;\ \xi;\ \Phi \triangleright \mathtt{step}\ e\ \mathtt{by}\ \dot{r}\ \mathtt{with}\ \sigma\ \mathtt{giving}\ \overline{\psi_i}
+        \;\; \mapsto \;\; \Gamma ;\ \Delta ;\ \xi;\ \Phi \blacktriangleleft \mathtt{step}\ e\ \mathtt{by}\ \dot{r}\ \mathtt{with}\ \sigma\ \mathtt{giving}\ \epsilon\ \Box\ \overline{\psi_j} \triangleright \psi_0 }
+                {\;\textsc{Step}_\triangleright}
+$$
+
+        $$
+        \inferrule{ (\dot{r} = \rho) \in \Delta \\ \textbf{instantiate}(\rho,\sigma) = e' \\ \Gamma ; \xi \Vdash e \sim e'  }{\Gamma ;\ \Delta ;\ \xi;\ \Phi \triangleright \mathtt{step}\ e\ \mathtt{by}\ \dot{r}\ \mathtt{with}\ \sigma\ \mathtt{giving}\ \epsilon
+        \;\; \mapsto \;\; \Gamma ;\ \Delta ;\ \xi;\ \Phi \triangleleft \mathtt{step}\ e\ \mathtt{by}\ \dot{r}\ \mathtt{with}\ \sigma\ \mathtt{giving}\ \epsilon ; e }
+                {\;\textsc{Step}_\epsilon}
+$$
+
+        $$
+        \inferrule{ \Gamma \vdash \rho\ \textbf{wellformed} }{\Gamma ;\ \Delta ;\ \xi;\ \Phi \triangleright \mathtt{sorry}\ \rho
+        \;\; \mapsto \;\; \Gamma ;\ \Delta ;\ \xi;\ \Phi \triangleleft \mathtt{sorry}\ \rho;\ \rho }
+                {\;\textsc{Sorry}_\triangleright}
+$$
+
+        $$
+        \inferrule{ \rho = \Lambda(\overline{x_i : \tau_i}).\ \llbracket \overline{\rho_p} \rrbracket \Rightarrow e \\ (\dot{r} = \rho') \in \Delta \\ \overline{x_i} \cap \mathit{dom}(\Gamma) = \emptyset \\\\ \textbf{instantiate}(\rho',\sigma) = \rho'' \\ \overline{x_i : \tau_i}, \Gamma ; \xi \Vdash_\rho \rho'' \sim \llbracket \overline{\rho_p} \rrbracket \Rightarrow e  }
+        {\Gamma ;\ \Delta ;\ \xi;\ \Phi \triangleright \mathtt{show}\ \rho\ \mathtt{by}\ \dot{r}\ \mathtt{with}\ \sigma
+        \;\; \mapsto \;\; \Gamma ;\ \Delta ;\ \xi;\ \Phi \triangleleft \mathtt{show}\ \rho\ \mathtt{by}\ \dot{r}\ \mathtt{with}\ \sigma;\ \rho }
+                {\;\textsc{Show}_\triangleright}
+$$
+
+        $$
+        \inferrule{ \rho = \Lambda( \overline{x_i : \tau_i} ).\ \llbracket \overline{\rho_p} \rrbracket \Rightarrow e \\ \rho' = \Lambda ( x : \tau, \overline{x_i : \tau_i} ).\ \llbracket \overline{\rho_p} \rrbracket \Rightarrow e \\ x \notin \overline{x_i} }{\Gamma ;\ \Delta ;\ \xi;\ \Phi \blacktriangleleft \mathtt{for\ all}\ x : \tau.\ \Box \triangleleft \pi; \rho
+        \;\; \mapsto \;\; x : \tau, \Gamma\ \setminus\ (x : \tau) ;\ \Delta ;\ \xi;\ \Phi  \triangleleft \mathtt{for\ all}\ x : \tau.\ \pi;\ \rho'}
+                {\textsc{ForAll}_\triangleleft}
+$$
+
+        $$
+        \inferrule{ \rho = \Lambda( \overline{x_i : \tau_i} ).\ \llbracket \overline{\rho_p} \rrbracket \Rightarrow e \\ \rho' = \Lambda ( \overline{x_i : \tau_i} ).\ \llbracket \rho_a;\ \overline{\rho_p} \rrbracket \Rightarrow e \\ \mathit{fv}(\rho_a) \cap \overline{x_i} = \emptyset }{\Gamma ;\ \Delta ;\ \xi;\ \Phi \blacktriangleleft \mathtt{assuming}\ \dot{r} = \rho_a,\ \Box \triangleleft \pi; \rho
+        \;\; \mapsto \;\; x : \tau, \Gamma ;\ \Delta\ \setminus\ (\dot{r} = \rho_a);\ \xi;\ \Phi  \triangleleft \mathtt{assuming}\ \dot{r} = \rho_a,\ \pi;\ \rho'}
+                {\textsc{Assuming}_\triangleleft}
+$$
+
+        $$
+        \inferrule{\dot{r} \notin \mathit{dom}(\Delta) }{\Gamma ;\ \Delta ;\ \xi;\ \Phi \blacktriangleleft \mathtt{lemma}\ \dot{r} = \Box,\ \pi_2 \triangleleft \pi_1;\ \rho
+        \;\; \mapsto \;\; \Gamma ;\ (\dot{r} = \rho), \Delta ;\ \xi;\ \Phi \blacktriangleleft \mathtt{lemma}\ \dot{r} = \pi_1,\ \Box\ (\rho)  \triangleright \pi_2}
+        {\;\textsc{Lemma}_{\triangleleft 1}}
+$$
+
+        $$
+        \inferrule{ }{\Gamma ;\ \Delta ;\ \xi;\ \Phi \blacktriangleleft \mathtt{lemma}\ \dot{r} = \pi_1,\ \Box\ (\rho_a) \triangleleft \pi_2;\ \rho
+        \;\; \mapsto \;\; \Gamma ;\ \Delta\ \setminus\ (\dot{r} = \rho_a);\ \xi;\ \Phi  \triangleleft \mathtt{lemma}\ \dot{r} = \pi_1,\ \pi_2;\ \rho}
+        {\;\textsc{Lemma}_{\triangleleft 2}}
+$$
+
+        $$
+\inferrule{ \overline{\psi_r} = \psi_0\ \overline{\psi'_r} }{ \Gamma ;\ \Delta ;\ \xi;\ \Phi \blacktriangleleft
+{\begin{array}{c}\mathtt{step}\ e\ \mathtt{by}\ \dot{r}\ \mathtt{with}\ \sigma\ \\ \mathtt{giving}\ \overline{\psi_l}\ \Box\ \overline{\psi_r}\end{array}} \triangleleft \psi ; \rho
+\;\; \mapsto \;\; \Gamma ;\ \Delta ;\ \xi;\ \Phi \blacktriangleleft {\begin{array}{c} \mathtt{step}\ e\ \mathtt{by}\ \dot{r}\ \mathtt{with}\ \sigma\ \\ \mathtt{giving}\ \overline{\psi_l}\ \psi\ \Box\ \overline{\psi'_r}\end{array}} \triangleright \psi_0 }
+                {\;\textsc{Step}_\triangleleft 1}
+$$
+
+        $$
+\inferrule{ }{ \Gamma ;\ \Delta ;\ \xi;\ \Phi \blacktriangleleft
+{\begin{array}{c}\mathtt{step}\ e\ \mathtt{by}\ \dot{r}\ \mathtt{with}\ \sigma\ \\ \mathtt{giving}\ \overline{\psi_l}\ \Box\ \epsilon\end{array}} \triangleleft \psi ; \rho
+\;\; \mapsto \;\; \Gamma ;\ \Delta ;\ \xi;\ \Phi \triangleleft {\begin{array}{c} \mathtt{step}\ e\ \mathtt{by}\ \dot{r}\ \mathtt{with}\ \sigma\ \\ \mathtt{giving}\ \overline{\psi_l}\ \psi\ \epsilon\end{array}}; e}
+                {\;\textsc{Step}_\triangleleft 1}
+$$
+$$\text{\framebox{$ Q \stackrel{\blacktriangleleft\!\blacktriangleleft}{\mapsto} Q' $}}$$
+        \begin{center}
+                (User Action: Step Backward)
+
+                $\mapsto$ in reverse
+        \end{center}
+$$\text{\framebox{$ Q \stackrel{?}{\mapsto} Q' $}}$$
+        \begin{center}
+                (User Action: Apply Rule with Unification)
+        \end{center}
+        $$
+        \inferrule{(\dot{r} = \Lambda(\overline{x_i : \tau_i}).\ \llbracket \overline{\rho_p} \rrbracket \Rightarrow e') \in \Delta \\ \overline{F^i_{\tau_i}}\ \textbf{fresh} \\ \sigma_1 = [\overline{x_i := F^i_{\tau_i}}] \\ \textbf{unify}(\sigma_1 e' \sim e, \xi) \leadsto \theta ; \xi' \\ \sigma = \theta '' \overline{F^i_{\tau_i}} \circ \sigma_1 }
+        { \Gamma ;\ \Delta ;\ \xi;\ \Phi \triangleright \mathtt{sorry}\ e
+                      \quad\stackrel{?}{\mapsto}\quad
+                      \theta\Gamma ;\ \theta\Delta ;\ \xi';\ \theta\Phi \triangleright \mathtt{step}\ e\ \mathtt{by}\ \dot{r}\ \mathtt{with}\ \sigma\ \mathtt{giving}\ \overline{\mathtt{sorry}\ \sigma\theta \rho_p} }
+        $$
+        \begin{tabular}{p{0.5\textwidth}p{0.5\textwidth}}
+        $$\text{\framebox{$ \textbf{unify}(\xi) \leadsto \sigma; \xi' $}}$$
+        \begin{center}
+                (Huet's unification)
+        \end{center} & 
+        $$\text{\framebox{$ \textbf{simpl}(\xi) \leadsto \xi' $}}$$
+        \begin{center}
+                (Huet's \textbf{simpl})
+        \end{center} 
+\end{tabular}
+        \begin{tabular}{p{0.5\textwidth}p{0.5\textwidth}}
+        $$\text{\framebox{$ \xi \Vdash e \sim e' $}}$$
+        $$\inferrule{\textbf{simpl}(e \sim e') \leadsto \xi' \\ \xi' \subseteq \xi}{\xi \Vdash e \sim e'}{\textsc{Check}}$$ 
+        &
+        $$\text{\framebox{$ \xi \Vdash_\rho \rho \sim \rho' $}}$$
+        $$\inferrule{\xi \Vdash e \sim e' \\ \text{for each pair $\rho_i, \rho'_i$:}\ \xi \Vdash_\rho \rho_i \sim \rho'_i }{\xi \Vdash_\rho \Lambda(\overline{x_i : \tau_i}).\  \llbracket \overline{\rho_i} \rrbracket \Rightarrow e
+        \sim \Lambda(\overline{x_i : \tau_i}).\ \llbracket \overline{\rho'_i} \rrbracket \Rightarrow e'}{\textsc{Check}_\rho}$$ 
+\end{tabular}
+        \label{fig:semantics}
+\end{figure}
+
+
+\section{Future Work}
+
+\subsection{Pattern Unification}
+
+Miller's pattern unification \cite{Miller90alogic} is a subproblem of higher order unification where
+all terms are of a specific \emph{pattern} form, where the position in which schematic unification
+variables can occur is restricted, eliminating the need for a nondeterministic search, and providing
+most general unifiers. This does not cover all possible unification cases,
+however it offers a promising means to solve a broad
+swathe of these outstanding \emph{flex-flex} constraints, as well as find solutions to other
+unification problems more simply. Recent versions of \textsc{Isabelle} use pattern unification 
+exclusively, and delay any non-pattern terms. Right now, pattern unification is not implemented
+in \textsc{Gentzen}, but it our intention to use Miller's method to improve the unification engine
+in the near future.
+
+\subsection{Graphical Editor}
+
+The first release of \textsc{Gentzen} will only feature a command-line driven structural editor,
+with limited graphical or visual capability. Using the WebKit as a GUI toolkit, we are currently 
+working on a full-featured graphical editor that will make it possible to use \textsc{Gentzen} in
+an educational context.
+
+\subsection{Data types and other extensions}
+
+\textsc{Gentzen} currently has no support for algebraic data types. Basic support could be added, and
+restricted recursion schemes and structural induction could be allowed,
+based on their Church encoding or catamorphism. Most, if not all of what is necessary to express data
+types and their associated lemmas is already present in our meta-logic. The meta-logic of 
+\textsc{Isabelle} is very similar, and highly minimal, with a variety of extensions are built upon 
+its foundation, including a very flexible data types extension that merely requires proof
+of monotonicity \cite{Paulson:vr}. It is likely worth investigating how to make \textsc{Gentzen}'s proof language similarly  extensible, to enable modular additions to the proof language to express things like data types
+and inductive predicates.
+
+\section{Conclusion and Related Work}
+
+Besides other prominent theorem provers like \textsc{Coq} \cite{Team:vw}, and more importantly \textsc{Isabelle} \cite{Nipkow-Paulson-Wenzel:2002},
+\textsc{LCF} \cite{Milner:1972:LCF:891954} and \textsc{HOL}, which have very similar internal meta logics to \textsc{Gentzen}, there are several other projects that focus more on pedagogical concerns than the
+concerns of large scale verification projects:
+
+\begin{itemize}
+ \item \textsc{Hilbert} is a prototype interface for a simple, string-matching based propositional theorem prover. We
+         wrote \textsc{Hilbert} at the beginning of this project to investigate the feasibility of 
+         Gentzen-tree style graphical interfaces for theorem proving.
+ \item \textsc{Logitext} is a web-based interactive theorem prover for logical statements using the
+         sequent calculus, developed by Edward Yang at MIT\@. It also visualises proofs using Gentzen trees, however it is restricted
+         to first-order logic, and does not support defining custom rules or connectives.
+ \item \textsc{JAPE} is a Java-based theorem prover that supports Fitch-style proof diagrams, and first-order logic in natural deduction or sequent calculus.
+ \item \textsc{Pandora} is another Java-based natural-deduction theorem prover which uses its own diagram layout, using nested boxes, and first order logic.
+         \end{itemize}
+
+To our knowledge, \textsc{Gentzen} will be the first proof assistant based on a \emph{higher order logic}
+designed for educational purposes. The presence of a full blown higher order logic enables proof work 
+done in \textsc{Gentzen} to be of a much higher degree of sophistication than comparable first-order tools, which are not sufficient for the kinds of use-cases outlined by Benjamin Pierce in \cite{Pierce:2009:LUT:1596550.1596552}. For example, expressing an induction principle or a generalised elimination rule requires variables to stand for propositions, not just objects, which makes higher-order logic a necessity.
+
+By developing \textsc{Gentzen}, we hope to make it possible for computer science students to study rigorous reasoning and develop their reasoning skills. This will also help to inject mathematical logic and formal reasoning back into Computer Science classrooms, where such concepts have been slowly disappearing, without placing an onerous burden upon teaching staff.
+
+\bigskip
+
+\bigskip
+
+\bigskip
+
+\emph{Acknowledgements}. I would like to thank Andrea Vezzosi, Arseniy Alekseyev and the UNSW PLS group for their assistance in teaching me higher order unification. I would also like to thank my supervisors and assessors, who have been very gracious to agree to my change of project at the last minute.
+
+\bigskip
+
+\bibliographystyle{jfp}
+\bibliography{../cites}
+\end{document}
+
