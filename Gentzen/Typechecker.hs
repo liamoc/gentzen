@@ -44,7 +44,12 @@ assertEqual τ₁ τ₂ = when (τ₁ /= τ₂) $ throwError $ TypeMismatch τ�
          toTC (RV ν) = V ν
          toTC (RA c τ) = const $ A c τ
 
-typecheck = ηlnf
+
+
+
+typecheck :: Γ a -> Term Raw a -> Type -> Bool
+typecheck γ e τ | Right (_, τ') <- runTCM $ ηlnf γ e = τ == τ'
+                | otherwise                          = False
 
 typecheckEq :: Γ a -> Equation (Term Raw a) -> TCM (Equation (Term Typechecked a))
 typecheckEq envΓ (t₁ :=: t₂) = do (t₁', τ₁) <- ηlnf envΓ t₁

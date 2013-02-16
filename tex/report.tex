@@ -701,13 +701,13 @@ $$
 $$
 
         $$
-        \inferrule{ \overline{\psi_i} = \psi_0, \overline{\psi_j}\\ \Gamma \vdash e : \mathtt{Prop} \\ (\dot{r} = \rho) \in \Delta \\ \textbf{instantiate}(\rho,\sigma) = \rho' \\ \Gamma ; \xi \Vdash_\rho \rho' \sim \llbracket \overline{\textbf{rule}(\psi_i)} \rrbracket \Rightarrow e  }{\Gamma ;\ \Delta ;\ \xi;\ \Phi \triangleright \mathtt{step}\ e\ \mathtt{by}\ \dot{r}\ \mathtt{with}\ \sigma\ \mathtt{giving}\ \overline{\psi_i}
+        \inferrule{ \overline{\psi_i} = \psi_0, \overline{\psi_j}\\ \Gamma \vdash e : \mathtt{Prop} \\ (\dot{r} = \rho) \in \Delta \\ \textbf{instantiate}(\rho,\sigma) = \rho' \\ \xi \Vdash_\rho \rho' \sim \llbracket \overline{\textbf{rule}(\psi_i)} \rrbracket \Rightarrow e  }{\Gamma ;\ \Delta ;\ \xi;\ \Phi \triangleright \mathtt{step}\ e\ \mathtt{by}\ \dot{r}\ \mathtt{with}\ \sigma\ \mathtt{giving}\ \overline{\psi_i}
         \;\; \mapsto \;\; \Gamma ;\ \Delta ;\ \xi;\ \Phi \blacktriangleleft \mathtt{step}\ e\ \mathtt{by}\ \dot{r}\ \mathtt{with}\ \sigma\ \mathtt{giving}\ \epsilon\ \Box\ \overline{\psi_j} \triangleright \psi_0 }
                 {\;\textsc{Step}_\triangleright}
 $$
 
         $$
-        \inferrule{ (\dot{r} = \rho) \in \Delta \\ \textbf{instantiate}(\rho,\sigma) = e' \\ \Gamma ; \xi \Vdash e \sim e'  }{\Gamma ;\ \Delta ;\ \xi;\ \Phi \triangleright \mathtt{step}\ e\ \mathtt{by}\ \dot{r}\ \mathtt{with}\ \sigma\ \mathtt{giving}\ \epsilon
+        \inferrule{ (\dot{r} = \rho) \in \Delta \\ \textbf{instantiate}(\rho,\sigma) = e' \\ \xi \Vdash e \sim e'  }{\Gamma ;\ \Delta ;\ \xi;\ \Phi \triangleright \mathtt{step}\ e\ \mathtt{by}\ \dot{r}\ \mathtt{with}\ \sigma\ \mathtt{giving}\ \epsilon
         \;\; \mapsto \;\; \Gamma ;\ \Delta ;\ \xi;\ \Phi \triangleleft \mathtt{step}\ e\ \mathtt{by}\ \dot{r}\ \mathtt{with}\ \sigma\ \mathtt{giving}\ \epsilon ; e }
                 {\;\textsc{Step}_\epsilon}
 $$
@@ -719,7 +719,7 @@ $$
 $$
 
         $$
-        \inferrule{ \rho = \Lambda(\overline{x_i : \tau_i}).\ \llbracket \overline{\rho_p} \rrbracket \Rightarrow e \\ (\dot{r} = \rho') \in \Delta \\ \overline{x_i} \cap \mathit{dom}(\Gamma) = \emptyset \\\\ \textbf{instantiate}(\rho',\sigma) = \rho'' \\ \overline{x_i : \tau_i}, \Gamma ; \xi \Vdash_\rho \rho'' \sim \llbracket \overline{\rho_p} \rrbracket \Rightarrow e  }
+        \inferrule{ \rho = \Lambda(\overline{x_i : \tau_i}).\ \llbracket \overline{\rho_p} \rrbracket \Rightarrow e \\ (\dot{r} = \rho') \in \Delta \\ \overline{x_i} \cap \mathit{dom}(\Gamma) = \emptyset \\\\ \textbf{instantiate}(\rho',\sigma) = \rho'' \\ \xi \Vdash_\rho \rho'' \sim \llbracket \overline{\rho_p} \rrbracket \Rightarrow e  }
         {\Gamma ;\ \Delta ;\ \xi;\ \Phi \triangleright \mathtt{show}\ \rho\ \mathtt{by}\ \dot{r}\ \mathtt{with}\ \sigma
         \;\; \mapsto \;\; \Gamma ;\ \Delta ;\ \xi;\ \Phi \triangleleft \mathtt{show}\ \rho\ \mathtt{by}\ \dot{r}\ \mathtt{with}\ \sigma;\ \rho }
                 {\;\textsc{Show}_\triangleright}
@@ -753,14 +753,14 @@ $$
 \inferrule{ \overline{\psi_r} = \psi_0\ \overline{\psi'_r} }{ \Gamma ;\ \Delta ;\ \xi;\ \Phi \blacktriangleleft
 {\begin{array}{c}\mathtt{step}\ e\ \mathtt{by}\ \dot{r}\ \mathtt{with}\ \sigma\ \\ \mathtt{giving}\ \overline{\psi_l}\ \Box\ \overline{\psi_r}\end{array}} \triangleleft \psi ; \rho
 \;\; \mapsto \;\; \Gamma ;\ \Delta ;\ \xi;\ \Phi \blacktriangleleft {\begin{array}{c} \mathtt{step}\ e\ \mathtt{by}\ \dot{r}\ \mathtt{with}\ \sigma\ \\ \mathtt{giving}\ \overline{\psi_l}\ \psi\ \Box\ \overline{\psi'_r}\end{array}} \triangleright \psi_0 }
-                {\;\textsc{Step}_\triangleleft 1}
+        {\;\textsc{Step}_{\triangleleft 1}}
 $$
 
         $$
 \inferrule{ }{ \Gamma ;\ \Delta ;\ \xi;\ \Phi \blacktriangleleft
 {\begin{array}{c}\mathtt{step}\ e\ \mathtt{by}\ \dot{r}\ \mathtt{with}\ \sigma\ \\ \mathtt{giving}\ \overline{\psi_l}\ \Box\ \epsilon\end{array}} \triangleleft \psi ; \rho
 \;\; \mapsto \;\; \Gamma ;\ \Delta ;\ \xi;\ \Phi \triangleleft {\begin{array}{c} \mathtt{step}\ e\ \mathtt{by}\ \dot{r}\ \mathtt{with}\ \sigma\ \\ \mathtt{giving}\ \overline{\psi_l}\ \psi\ \epsilon\end{array}}; e}
-                {\;\textsc{Step}_\triangleleft 1}
+        {\;\textsc{Step}_{\triangleleft 2}}
 $$
 $$\text{\framebox{$ Q \stackrel{\blacktriangleleft\!\blacktriangleleft}{\mapsto} Q' $}}$$
         \begin{center}

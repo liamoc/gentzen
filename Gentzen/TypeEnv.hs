@@ -11,3 +11,6 @@ extend = flip maybe
 lookup :: Γ a -> Raw a -> Type
 lookup vΓ (RV ν) = vΓ ν
 lookup vΓ (RA c τ) = τ
+
+shave :: Γ (Suc a) -> Γ a
+shave = (. suc)

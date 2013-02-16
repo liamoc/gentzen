@@ -21,7 +21,7 @@ import Data.Either
 import Data.List(intersect)
 import Control.Arrow
 
-import Prelude hiding (concat, mapM, sequence)
+import Prelude hiding (concat, mapM, sequence, all, elem)
 
 simpl :: (Eq a) => Equation (Term Typechecked a) -> Maybe [Equation (Term Typechecked a)]
 simpl (Λ _ (A c τ) _       :=: Λ _ (A c' τ') _    ) | c == c' && τ == τ' = Just []
@@ -112,6 +112,7 @@ match e = guardNotEmpty =<< ((<>) <$> imitate e <*> project e)
          guardNotEmpty x = return x
 
 type UnificationProblem a = [Equation (Term Typechecked a)]
+type Ξ a = UnificationProblem a
 
 data Classification a = Classify { flexFlex  :: UnificationProblem a
                                  , flexRigid :: UnificationProblem a
@@ -181,8 +182,10 @@ checkSolution :: (Eq a) => UnificationProblem a -> UnificationProblem a -> Bool
 checkSolution = checkSolution' . classify
 
 checkSolution' :: (Eq a) => Classification a -> UnificationProblem a -> Bool
-checkSolution' (Classify ff [] []) rem = ff `intersect` rem == ff
+checkSolution' (Classify ff [] []) rem = all (`elem` rem) ff
 checkSolution' (Classify ff [] rr) rem = case fmap concat $ sequence $ map simpl rr
                       of Just rr' -> flip checkSolution' rem $ Classify ff [] [] <> classify rr'
                          Nothing  -> False
 checkSolution' (Classify ff fr []) _   = False
+
+

@@ -26,6 +26,7 @@ data Term r a where
 
 
 
+
 termeq :: (a -> a -> Bool) -> (Term Typechecked a -> Term Typechecked a -> Bool)
 termeq ((===) :: a -> a -> Bool) (Λ (τs₁ :: Vec n Type) t₁ cs₁) (Λ τs₂ t₂ cs₂)
     | Just Refl <- V.eq τs₁ τs₂
@@ -47,8 +48,7 @@ termeq ((===) :: a -> a -> Bool) (Λ (τs₁ :: Vec n Type) t₁ cs₁) (Λ τs�
 
 
 instance Eq b => Eq (Term Typechecked b) where
-  (Λ τs₁ r₁ cs₁) == (Λ τs₂ r₂ cs₂) | Just Refl <- V.eq τs₁ τs₂
-          = undefined
+  (==) = termeq (==)
 instance Show b => Show (Term Typechecked b) where
   show = showTerm show
     where showTerm :: (a -> String) -> Term Typechecked a -> String
