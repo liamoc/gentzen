@@ -79,49 +79,56 @@ data Q a r = forall n m. (:>) (Context a r n m) (ProofStatement (a :+: n) (r :+:
 
 data ProofError = PrE String
 
+contextVars' :: Φ a r n m -> Vec n Type
+contextVars' (ForAllC φ x τ) = Cons x τ $ contextVars' φ
+contextVars' (LemmaC₁ φ r π) = contextVars' φ
+contextVars' (LemmaC₂ φ r π) = contextVars' φ
+contextVars' (AssumingC φ x ρ) = contextVars' φ
+contextVars' (TreeC φ) = contextVars' φ
+contextVars' (InlineC φ e ρ ls rs) = contextVars' φ
+contextVars' (EmptyC) = Nil
+
 contextVars :: Φ a r n m -> Vec n Type
-contextVars (ForAllC φ x τ) = Cons x τ $ contextVars φ
-contextVars (LemmaC₁ φ r π) = contextVars φ
-contextVars (LemmaC₂ φ r π) = contextVars φ
-contextVars (AssumingC φ x ρ) = contextVars φ
-contextVars (TreeC φ) = contextVars φ
-contextVars (InlineC φ e ρ ls rs) = contextVars φ
+contextVars = V.reverse . contextVars'
+
+contextRules' :: Φ a r n m -> Vec m (Rule (a :+: n))
+contextRules' (ForAllC φ x τ :: Φ a r n m)
+   | Refl <- sequenceN (undefined :: a) (V.length $ contextVars φ)
+   = fmap (fmap suc) $ contextRules' φ
+contextRules' (LemmaC₁ φ x π) = contextRules' φ
+contextRules' (LemmaC₂ φ x π) = Cons x (rule π) $ contextRules' φ
+contextRules' (AssumingC φ x ρ) = Cons x ρ $ contextRules' φ
+contextRules' (TreeC φ) = contextRules' φ
+contextRules' (InlineC φ e ρ ls rs) = contextRules' φ
+contextRules' EmptyC = Nil
 
 contextRules :: Φ a r n m -> Vec m (Rule (a :+: n))
-contextRules (ForAllC φ x τ :: Φ a r n m)
-   | Refl <- sequenceN (undefined :: a) (V.length $ contextVars φ)
-   = fmap (fmap suc) $ contextRules φ
-contextRules (LemmaC₁ φ x π) = contextRules φ
-contextRules (LemmaC₂ φ x π) = Cons x (rule π) $ contextRules φ
-contextRules (AssumingC φ x ρ) = Cons x ρ $ contextRules φ
-contextRules (TreeC φ) = contextRules φ
-contextRules (InlineC φ e ρ ls rs) = contextRules φ
+contextRules = V.reverse . contextRules'
 
 wellformed :: Γ a -> Rule a -> Bool
 wellformed γ (Holds τs ρs e)
    | γ' <- expandDomain τs γ
    , typecheck γ' e "Prop"
-   , all (wellformed γ') ρs
-   = True
-   | otherwise = False
+   , all (wellformed γ') ρs = True
+   | otherwise              = False
 
---FINISH TODO
-(||-) :: (Eq a) => (SNat n, Γ (a :+: n), Ξ a) -> Equation (Rule (a :+: n)) -> Bool
+(||-) :: (Eq a) => (Vec n Type, Γ (a :+: n), Ξ a) -> Equation (Rule (a :+: n)) -> Bool
 (n , γ, ξ :: Ξ a) ||- (Holds τs ρp e :=: Holds τs' ρp' e')
         | Just Refl <- V.eq τs τs'
-        , Refl <- plusNCollect (undefined :: a) n (V.length τs)
-        , (addNat n (V.length τs), τs `expandDomain` γ, ξ) |- e :=: e'
-        , all ((addNat n (V.length τs), τs `expandDomain` γ,ξ) ||-) (zipWith (:=:) ρp ρp')
+        , Refl <- plusNCollect (undefined :: a) (V.length n) (V.length τs)
+        , (n `V.concatenate` τs, τs `expandDomain` γ, ξ) |- e :=: e'
+        , all ((n `V.concatenate` τs, τs `expandDomain` γ,ξ) ||-) (zipWith (:=:) ρp ρp')
         = True
         | otherwise = False
 
-(|-) :: (Eq a) => (SNat n, Γ (a :+: n), Ξ a) -> Equation (Term Raw (a :+: n)) -> Bool
+(|-) :: (Eq a) => (Vec n Type, Γ (a :+: n), Ξ a) -> Equation (Term Raw (a :+: n)) -> Bool
 (|-) (n, γ, ξ) e
  | Right e' <- runTCM $ typecheckEq γ e
- = checkSolution [fmap (λ' undefined) e'] ξ
+ = checkSolution [fmap (λ' n) e'] ξ
 
 infixl 3 ||-
 infixl 3 |-
+
 next :: (Eq a) => Q a r -> Q a r
 next (Q γ δ ξ φ :> ForAll x τ π :: Q a r)
    | Refl <- sequenceN (undefined :: a) (V.length $ contextVars φ)
@@ -150,17 +157,19 @@ next (Q γ δ ξ φ :> Show (Unproven ρ))
    = Q γ δ ξ φ :< (Show (Unproven ρ), ρ)
 next (Q γ δ ξ φ :> Show (Inline e (r, σ) (t:ts)))
    | typecheck γ e "Prop"
-   , n  <- V.length $ contextVars φ
+   , vars <- contextVars φ
+   , n  <- V.length vars
    , ρ  <- RE.lookup δ r
    , ρ' <- instantiate ρ σ
-   , (n, ξ) ||- ρ' :=: Holds Nil (map ruleTree (t:ts)) e
+   , (vars, γ, ξ) ||- ρ' :=: Holds Nil (map ruleTree (t:ts)) e
    = Q γ δ ξ (InlineC φ e (r,σ) [] ts) :> Show t
 next (Q γ δ ξ φ :> Show (Inline e (r, σ) []))
    | typecheck γ e "Prop"
-   , n  <- V.length $ contextVars φ
+   , vars <- contextVars φ
+   , n  <- V.length vars
    , ρ  <- RE.lookup δ r
    , Holds Nil [] e' <- instantiate ρ σ
-   , (n, ξ) |- e :=: e'
+   , (vars, γ, ξ) |- e :=: e'
    = Q γ δ ξ φ :< (Show (Inline e (r, σ) []), Holds Nil [] e)
 next (Q γ δ ξ (InlineC φ e (r, σ) ls []) :< (Show π, ρ))
    = Q γ δ ξ φ :< (Show $ Inline e (r, σ) (ls ++ [π]), Holds Nil [] e)
@@ -168,10 +177,12 @@ next (Q γ δ ξ (InlineC φ e (r, σ) ls (r':rs)) :< (Show π, ρ))
    = Q γ δ ξ (InlineC φ e (r, σ) (ls ++ [π]) rs) :> Show r'
 next (Q γ δ ξ φ :> Show (ProvenBy ρ (r, σ)) :: Q a r)
    | Holds' τs ρp e <- ρ
-   , n  <- V.length $ contextVars φ
+   , vars <- contextVars φ
+   , n  <- V.length vars
    , n' <- V.length τs
    , ρ' <- RE.lookup δ r
    , Refl <- plusNCollect (undefined :: a) n n'
    , ρ'' <- instantiate (fmap (upN n') ρ') σ
-   , (addNat n n', ξ) ||- ρ'' :=: Holds Nil ρp e
+   , (vars `concatenate` τs, τs `expandDomain` γ, ξ) ||- ρ'' :=: Holds Nil ρp e
    = Q γ δ ξ φ :< (Show (ProvenBy ρ (r, σ)), hideIntros ρ)
+

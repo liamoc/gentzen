@@ -45,7 +45,7 @@ enfreshinate (Holds τs rs c) = Holds Nil (map (substRule fresh) rs) (c >>= fres
   where freshSubst :: [String] -> Vec n Type -> (a -> Term Raw b) -> (a :+: n) -> Term Raw b
         freshSubst _ Nil f = f
         freshSubst (c:cs) (Cons s τ τs) f = freshSubst cs τs (maybe (Λ Nil (RA c τ) []) f)
-        strings = map (("??"++) . show) [1..]
+        strings = map (("?"++) . show) [1..]
         fresh = freshSubst strings τs return
 
 instantiate :: Rule a -> FreeSubst a -> Rule a

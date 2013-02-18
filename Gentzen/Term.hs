@@ -80,6 +80,7 @@ lambda = Λ
 (→) :: Type -> Type -> Type
 (→) = Fun
 
+infixr 7 → 
 (.$) :: Term Raw a -> Term Raw a -> Term Raw a
 (.$) (Λ Nil h ps) t = Λ Nil h (ps ++ [t])
 (.$) (Λ (Cons n τ (τs :: Vec n' Type)) h ps ) (t :: Term Raw a)

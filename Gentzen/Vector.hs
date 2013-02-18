@@ -1,11 +1,11 @@
 {-# LANGUAGE GADTs, DataKinds, TypeOperators, KindSignatures, StandaloneDeriving #-}
 
-module Gentzen.Vector (Vec (..), length, fromList, zip, eq, name, toList, expandDomain, expandDomainN) where
+module Gentzen.Vector (Vec (..), concatenate, reverse, length, fromList, zip, eq, name, toList, expandDomain, expandDomainN) where
 import Data.Foldable
 import Data.Maybe
 import Data.Traversable
 import Gentzen.TypeLevel
-import Prelude hiding (length, zip)
+import Prelude hiding (length, zip, reverse)
 import Control.Applicative
 
 data Vec :: Nat -> * -> * where
@@ -23,6 +23,13 @@ instance Foldable (Vec n) where
 instance Traversable (Vec n) where
   traverse f Nil = pure Nil
   traverse f (Cons n x xs) = Cons n <$> f x <*> traverse f xs
+
+concatenate :: Vec n a -> Vec n' a -> Vec (n `NatPlus` n') a
+concatenate (Nil) xs = xs
+concatenate (Cons s v ys) xs
+  | Refl <- sucDistrib (length ys) (length xs)
+  = Cons s v (concatenate ys xs)
+
 
 length :: Vec n a -> SNat n
 length Nil = SZero
@@ -66,6 +73,13 @@ set (VZ l mn _ r) m' = VZ l mn m' r
 
 name :: VecZipper n a -> Maybe String
 name (VZ l mn m r) = mn
+
+reverse :: Vec n a -> Vec n a
+reverse (Cons n ρ ρs) 
+   | Refl <- sucDistrib (length ρs) (SZero)
+   , Refl <- plusZero (length ρs)
+   = concatenate (reverse ρs) (Cons n ρ Nil)
+reverse (Nil) = Nil
 
 setName :: VecZipper n a -> Maybe String -> VecZipper n a
 setName (VZ l _ m r) mn = VZ l mn m r
