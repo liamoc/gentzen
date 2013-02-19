@@ -19,6 +19,9 @@ instance Functor (Vec n) where
 
 instance Foldable (Vec n) where
   foldMap f = foldMap f . toList
+   where toList :: Vec n a -> [a]
+         toList (Cons n x xs) = x : toList xs
+         toList Nil = []
 
 instance Traversable (Vec n) where
   traverse f Nil = pure Nil

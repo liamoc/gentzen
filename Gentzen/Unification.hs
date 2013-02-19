@@ -21,6 +21,8 @@ import Data.Either
 import Data.List(intersect)
 import Control.Arrow
 
+import Debug.Trace
+
 import Prelude hiding (concat, mapM, sequence, all, elem)
 
 simpl :: (Eq a) => Equation (Term Typechecked a) -> Maybe [Equation (Term Typechecked a)]
@@ -51,6 +53,9 @@ newtype UnificationM a = UniM { runUniM :: StateT Int (Either UnificationError) 
                        , MonadError UnificationError
                        , MonadState Int
                        )
+runUnificationM :: UnificationM a -> Int -> Either UnificationError (a, Int)
+runUnificationM = runStateT . runUniM
+
 
 freshName :: Type -> UnificationM (Raw a)
 freshName τ = do modify (+1)
@@ -166,17 +171,24 @@ tree envΓ p@(Classify ff fr rr) = case fmap concat $ sequence $ map simpl rr
 type Traversal a = [(FreeSubst a, UnificationTree a)]
 type Solution a =  (FreeSubst a, UnificationProblem a)
 
-step :: Traversal a -> ([Solution a], Traversal a)
+step :: Show a => Traversal a -> ([Solution a], Traversal a)
 step st = fmap concat $ partitionEithers $ map (uncurry $ step') st
 
-step' :: FreeSubst a -> UnificationTree a -> Either (Solution a) (Traversal a)
+step' :: Show a => FreeSubst a -> UnificationTree a -> Either (Solution a) (Traversal a)
+step' σ t | trace (show t ++ " step'") False = undefined
 step' σ (Success ρ) = Left (σ, ρ)
 step' σ (Failure _) = Right []
 step' σ (Node σs) = Right $ map (first (σ <>)) σs
 
-steps :: Traversal a -> [Solution a]
-steps t = let (as,t') = step t
-           in if null t' then as else as ++ steps t'
+steps :: Show a => Int -> Traversal a -> [Solution a]
+steps n t | trace (show n ++ " steps") False = undefined
+steps 0 t = []
+steps n t = let (as,t') = step t
+             in if null t' then as else as ++ steps (n-1) t'
+
+unify :: (Show a, Eq a) => Int -> Γ a -> UnificationProblem a -> UnificationM [Solution a]
+unify n γ prb = do t <- tree γ (classify prb)
+                   return $ steps n [(mempty, t)]
 
 checkSolution :: (Eq a) => UnificationProblem a -> UnificationProblem a -> Bool
 checkSolution = checkSolution' . classify

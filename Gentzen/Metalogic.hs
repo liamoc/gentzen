@@ -63,7 +63,6 @@ data Φ ::  * -> * -> Nat -> Nat -> * where
           -> Φ a r n ('Suc m)
   AssumingC :: Φ a r n m -> Maybe String -> Rule (a :+: n)
             -> Φ a r n ('Suc m)
-  TreeC   :: Φ a r n m -> Φ a r n m
   InlineC :: Φ a r n m -> Term Raw (a :+: n) -> (r :+: m, FreeSubst (a :+: n))
           -> [ProofTree (a :+: n) (r :+: m)] -> [ProofTree (a :+: n) (r :+: m)]
           -> Φ a r n m
@@ -84,7 +83,6 @@ contextVars' (ForAllC φ x τ) = Cons x τ $ contextVars' φ
 contextVars' (LemmaC₁ φ r π) = contextVars' φ
 contextVars' (LemmaC₂ φ r π) = contextVars' φ
 contextVars' (AssumingC φ x ρ) = contextVars' φ
-contextVars' (TreeC φ) = contextVars' φ
 contextVars' (InlineC φ e ρ ls rs) = contextVars' φ
 contextVars' (EmptyC) = Nil
 
@@ -98,7 +96,6 @@ contextRules' (ForAllC φ x τ :: Φ a r n m)
 contextRules' (LemmaC₁ φ x π) = contextRules' φ
 contextRules' (LemmaC₂ φ x π) = Cons x (rule π) $ contextRules' φ
 contextRules' (AssumingC φ x ρ) = Cons x ρ $ contextRules' φ
-contextRules' (TreeC φ) = contextRules' φ
 contextRules' (InlineC φ e ρ ls rs) = contextRules' φ
 contextRules' EmptyC = Nil
 
@@ -129,32 +126,55 @@ wellformed γ (Holds τs ρs e)
 infixl 3 ||-
 infixl 3 |-
 
-next :: (Eq a) => Q a r -> Q a r
+back :: Q a r -> Either String (Q a r)
+back (Q γ δ ξ (ForAllC φ x τ) :> π :: Q a r)
+   | Refl <- sequenceN (undefined :: a) (V.length $ contextVars φ)
+   = Right $ Q (TE.shave γ) (RE.shaveVars δ) ξ φ :> ForAll x τ π
+back (Q γ δ ξ (AssumingC φ r ρ) :> π :: Q a r)
+   | Refl <- sequenceN (undefined :: r) (V.length $ contextRules φ)
+   = Right $ Q γ (RE.shave δ) ξ φ :> Assuming r ρ π
+back (Q γ δ ξ (LemmaC₂ φ r π₁) :> π₂ :: Q a r)
+   | Refl <- sequenceN (undefined :: r) (V.length $ contextRules φ)
+   = Right $ Q γ (RE.shave δ) ξ φ :> Lemma r π₁ π₂
+back (Q γ δ ξ (LemmaC₁ φ r π₂) :> π₁ :: Q a r)
+   | Refl <- sequenceN (undefined :: r) (V.length $ contextRules φ)
+   = Right $ Q γ δ ξ φ :> Lemma r π₁ π₂
+back (Q γ δ ξ (InlineC φ e (r, σ) ls rs) :> Show π)
+   = Right $ Q γ δ ξ φ :> Show (Inline e (r, σ) (ls ++ (π:rs)))
+back _ = Left "You can't go back from here"
+
+unprove :: Q a r -> Either String (Q a r)
+unprove (Q γ δ ξ φ :> Show t) = Right $ Q γ δ ξ φ :> Show (Unproven $ ruleTree t)
+unprove _ = Left "Unprove only works on proof trees"
+
+next :: (Eq a) => Q a r -> Either String (Q a r)
 next (Q γ δ ξ φ :> ForAll x τ π :: Q a r)
    | Refl <- sequenceN (undefined :: a) (V.length $ contextVars φ)
-   = Q (TE.extend γ τ) (fmap suc δ) ξ (ForAllC φ x τ) :> π
+   = Right $ Q (TE.extend γ τ) (fmap suc δ) ξ (ForAllC φ x τ) :> π
 next (Q γ δ ξ (ForAllC φ x τ) :< (π , ρ) :: Q a r)
    | Refl <- sequenceN (undefined :: a) (V.length $ contextVars φ)
-   = Q (TE.shave γ) (RE.shaveVars δ) ξ φ :< (ForAll x τ π, abstractRule x τ ρ)
+   = Right $ Q (TE.shave γ) (RE.shaveVars δ) ξ φ :< (ForAll x τ π, abstractRule x τ ρ)
 next (Q γ δ ξ φ :> Assuming r ρ π :: Q a r)
    | Refl <- sequenceN (undefined :: r) (V.length $ contextRules φ)
    , wellformed γ ρ
-   = Q γ (RE.extend δ ρ) ξ (AssumingC φ r ρ) :> π
+   = Right $ Q γ (RE.extend δ r ρ) ξ (AssumingC φ r ρ) :> π
+   | otherwise = Left "Rule not well typed"
 next (Q γ δ ξ (AssumingC φ r ρ) :< (π , ρ') :: Q a r)
    | Refl <- sequenceN (undefined :: r) (V.length $ contextRules φ)
-   = Q γ (RE.shave δ) ξ φ :< (Assuming r ρ π , addPremise ρ ρ')
+   = Right $ Q γ (RE.shave δ) ξ φ :< (Assuming r ρ π , addPremise ρ ρ')
 next (Q γ δ ξ φ :> Lemma r π₁ π₂ :: Q a r)
    | Refl <- sequenceN (undefined :: r) (V.length $ contextRules φ)
-   = Q γ δ ξ (LemmaC₁ φ r π₂) :> π₁
+   = Right $ Q γ δ ξ (LemmaC₁ φ r π₂) :> π₁
 next (Q γ δ ξ (LemmaC₁ φ r π₂) :< (π₁ , ρ) :: Q a r)
    | Refl <- sequenceN (undefined :: r) (V.length $ contextRules φ)
-   = Q γ (RE.extend δ ρ) ξ (LemmaC₂ φ r π₁) :> π₂
+   = Right $ Q γ (RE.extend δ r ρ) ξ (LemmaC₂ φ r π₁) :> π₂
 next (Q γ δ ξ (LemmaC₂ φ r π₁) :< (π₂ , ρ) :: Q a r)
    | Refl <- sequenceN (undefined :: r) (V.length $ contextRules φ)
-   = Q γ (RE.shave δ) ξ φ :< (Lemma r π₁ π₂ , ρ)
+   = Right $ Q γ (RE.shave δ) ξ φ :< (Lemma r π₁ π₂ , ρ)
 next (Q γ δ ξ φ :> Show (Unproven ρ))
    | wellformed γ ρ
-   = Q γ δ ξ φ :< (Show (Unproven ρ), ρ)
+   = Right $ Q γ δ ξ φ :< (Show (Unproven ρ), ρ)
+   | otherwise = Left "Rule not well typed"
 next (Q γ δ ξ φ :> Show (Inline e (r, σ) (t:ts)))
    | typecheck γ e "Prop"
    , vars <- contextVars φ
@@ -162,19 +182,23 @@ next (Q γ δ ξ φ :> Show (Inline e (r, σ) (t:ts)))
    , ρ  <- RE.lookup δ r
    , ρ' <- instantiate ρ σ
    , (vars, γ, ξ) ||- ρ' :=: Holds Nil (map ruleTree (t:ts)) e
-   = Q γ δ ξ (InlineC φ e (r,σ) [] ts) :> Show t
+   = Right $ Q γ δ ξ (InlineC φ e (r,σ) [] ts) :> Show t
+   | typecheck γ e "Prop" = Left "Not a valid instantiation of the rule"
+   | otherwise = Left "Goal does not type check"
 next (Q γ δ ξ φ :> Show (Inline e (r, σ) []))
    | typecheck γ e "Prop"
    , vars <- contextVars φ
    , n  <- V.length vars
-   , ρ  <- RE.lookup δ r
+   , ρ  <- RE.lookup δ r 
    , Holds Nil [] e' <- instantiate ρ σ
    , (vars, γ, ξ) |- e :=: e'
-   = Q γ δ ξ φ :< (Show (Inline e (r, σ) []), Holds Nil [] e)
+   = Right $ Q γ δ ξ φ :< (Show (Inline e (r, σ) []), Holds Nil [] e)
+   | typecheck γ e "Prop" = Left "Not a valid instantiation of the rule"
+   | otherwise            = Left "Goal does not type check"
 next (Q γ δ ξ (InlineC φ e (r, σ) ls []) :< (Show π, ρ))
-   = Q γ δ ξ φ :< (Show $ Inline e (r, σ) (ls ++ [π]), Holds Nil [] e)
+   = Right $ Q γ δ ξ φ :< (Show $ Inline e (r, σ) (ls ++ [π]), Holds Nil [] e)
 next (Q γ δ ξ (InlineC φ e (r, σ) ls (r':rs)) :< (Show π, ρ))
-   = Q γ δ ξ (InlineC φ e (r, σ) (ls ++ [π]) rs) :> Show r'
+   = Right $ Q γ δ ξ (InlineC φ e (r, σ) (ls ++ [π]) rs) :> Show r'
 next (Q γ δ ξ φ :> Show (ProvenBy ρ (r, σ)) :: Q a r)
    | Holds' τs ρp e <- ρ
    , vars <- contextVars φ
@@ -184,5 +208,5 @@ next (Q γ δ ξ φ :> Show (ProvenBy ρ (r, σ)) :: Q a r)
    , Refl <- plusNCollect (undefined :: a) n n'
    , ρ'' <- instantiate (fmap (upN n') ρ') σ
    , (vars `concatenate` τs, τs `expandDomain` γ, ξ) ||- ρ'' :=: Holds Nil ρp e
-   = Q γ δ ξ φ :< (Show (ProvenBy ρ (r, σ)), hideIntros ρ)
-
+   = Right $ Q γ δ ξ φ :< (Show (ProvenBy ρ (r, σ)), hideIntros ρ) 
+   | otherwise = Left "Rule application invalid"

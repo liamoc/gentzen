@@ -110,14 +110,13 @@ displayContext (InlineC φ e (r, σ) ls rs) te re
            (map (displayTree te re) ls)
            (map (displayTree te re) rs)
    : displayContext φ te re
-displayContext (TreeC x) te re = displayContext x te re
 
 class Pretty a where
   ppr :: a -> String
 
 instance Pretty PrettyContext where
   ppr (PForAll x τ) = "for all " ++ x ++ " : " ++ ppr τ ++ ", □"
-  ppr (PAssuming x ρ) = "assuming " ++ x ++ " = \"" ++ ppr ρ ++ "\""
+  ppr (PAssuming x ρ) = "assuming " ++ x ++ " = \"" ++ ppr ρ ++ "\", □"
   ppr (PLemma₁ n π)   = "lemma " ++ n ++ " = □, " ++ ppr π
   ppr (PLemma₂ n π)   = "lemma " ++ n ++ " = " ++ ppr π ++ ", □"
   ppr (PStep e (r, σ) ls rs)
@@ -149,7 +148,7 @@ instance Pretty PrettyStmt where
   ppr (LemmaI [] π) = ppr π
   ppr (LemmaI ((n,π):πs) π₁) = let header =  "lemma " ++ n ++ " = "
                                 in header ++ drop (length header) (indent' (length header) $ ppr π)
-                                ++ ";\n" ++ indent (ppr $ LemmaI πs π₁)
+                                ++ "in " ++ dropWhile (==' ') (indent (ppr $ LemmaI πs π₁))
   ppr (Shows t) = ppr t
 
 instance Pretty Type where

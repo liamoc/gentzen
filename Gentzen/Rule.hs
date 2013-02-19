@@ -40,16 +40,20 @@ freeSubstRule σ (Holds τs ρs c) = let σ' = fmap (upN (V.length τs)) σ
                                    in Holds τs (map (freeSubstRule σ') ρs) $ σ' `freeSubst` c
 
 
-enfreshinate :: Rule a -> Rule a
-enfreshinate (Holds τs rs c) = Holds Nil (map (substRule fresh) rs) (c >>= fresh)
-  where freshSubst :: [String] -> Vec n Type -> (a -> Term Raw b) -> (a :+: n) -> Term Raw b
-        freshSubst _ Nil f = f
-        freshSubst (c:cs) (Cons s τ τs) f = freshSubst cs τs (maybe (Λ Nil (RA c τ) []) f)
-        strings = map (("?"++) . show) [1..]
-        fresh = freshSubst strings τs return
+enfreshinate :: Rule a -> (Rule a, [String])
+enfreshinate (Holds τs rs c) = let (subst,strs) = fresh
+                                in (Holds Nil (map (substRule subst) rs) (c >>= subst), strs)
+  where freshSubst :: [String] -> Vec n Type -> (a -> Term Raw b) -> ((a :+: n) -> Term Raw b, [String])
+        freshSubst used Nil f = (f, map ('?':) used)
+        freshSubst used (Cons s τ τs) f
+          = let c = freshName used s
+          in freshSubst (c:used) τs (maybe (Λ Nil (RA ('?':c) τ) []) f)
+        freshName used Nothing = head $ dropWhile (`elem` used) $ map show [1..]
+        freshName used (Just s) = head $ dropWhile (`elem` used) $ iterate (++"′") s
+        fresh = freshSubst [] τs return
 
 instantiate :: Rule a -> FreeSubst a -> Rule a
-instantiate ρ σ = freeSubstRule σ (enfreshinate ρ)
+instantiate ρ σ = freeSubstRule σ (fst $ enfreshinate ρ)
 
 isOK :: Rule a -> Bool
 isOK (Holds τs rs r) = not (containsFree r) && all isOK rs
